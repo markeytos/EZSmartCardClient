@@ -6,22 +6,29 @@ using Microsoft.Extensions.Logging;
 using SampleSharedServices.Services;
 
 Console.WriteLine("Welcome to the EZSmartCard HR Sample");
-string groupObjectID = "27f89fa7-682e-4c2b-89f8-b5c80170e564";
-ILogger logger = CreateLogger("");
-IEZSmartCardManager ezSmartCardManager = new EZSmartCardManager(new(), 
-    "https://keyos.ezsmartcard.io", logger, new AzureCliCredential());
+string groupObjectID = "";//enter a group ID if you want EZSmartCard to only add users from a specific group leave empty to add all the AAD Users
+string? instanceURL = "";//replace with your EZSmartCard instance URL
+string appInsightsConnectionString = "";
+
+if (string.IsNullOrWhiteSpace(instanceURL))
+{
+    Console.WriteLine("Please enter the EZSmartCard Instance URL");
+    instanceURL = Console.ReadLine();
+}
+
+if (string.IsNullOrWhiteSpace(instanceURL))
+{
+    Console.WriteLine("Invalid EZSmartCard Instance URL");
+    return;
+}
+ILogger logger = CreateLogger(appInsightsConnectionString);
+IEZSmartCardManager ezSmartCardManager = new EZSmartCardManager(new(),
+    instanceURL, logger, new AzureCliCredential());
 IGraphService graphService = new GraphService(new DefaultAzureCredential());
 
 
 try
 {
-    UserMappingModel testMap = new()
-    {
-        Alias = "me",
-        DomainID = "ff150e67-ec24-4f8d-9bbf-b8c854292ce3",
-        NewAlias = "igal"
-    };
-    var test = await ezSmartCardManager.CreateUserMappingsAsync(new (){testMap});
     Console.WriteLine("Getting EZSmartCard Active Users");
     List<HRUser> users = 
         await ezSmartCardManager.GetExistingUsersAsync(true);
