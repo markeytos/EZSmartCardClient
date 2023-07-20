@@ -8,6 +8,49 @@ namespace EZSmartCardClient.Models;
 
 public class HRUser
 {
+
+    public HRUser()
+    {
+    }
+
+    public HRUser(string firstName, string lastName, string email,
+        string managerEmail)
+    {
+        FirstName = firstName;
+        LastName = lastName;
+        Email = email;
+        Alias = email.Split("@")[0];
+        Active = true;
+        ManagerEmail = managerEmail;
+    }
+
+    public override bool Equals(object? obj)
+    {
+        if (obj is HRUser user)
+        {
+            return Email == user.Email
+                   && FirstName == user.FirstName
+                   && MiddleName == user.MiddleName
+                   && LastName == user.LastName
+                   && Email == user.Email
+                   && Alias == user.Alias
+                   && ManagerEmail == user.ManagerEmail
+                   && Clearances == user.Clearances
+                   && CostCenter == user.CostCenter
+                   && Active == user.Active
+                   && DocumentNumber == user.DocumentNumber
+                   && DOB == user.DOB
+                   && Country == user.Country;
+        }
+        return false;
+    }
+
+    public override int GetHashCode()
+    {
+        // ReSharper disable once NonReadonlyMemberInGetHashCode
+        return Email.GetHashCode();
+    }
+
     [JsonPropertyName("FirstName")]
     public string FirstName { get; set; } = string.Empty;
     [JsonPropertyName("MiddleName")]
