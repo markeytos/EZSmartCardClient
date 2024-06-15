@@ -1,13 +1,13 @@
-﻿using Azure.Core;
-using Microsoft.Graph;
-using System;
+﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics.Metrics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using Microsoft.Graph.Models;
-using System.Diagnostics.Metrics;
+using Azure.Core;
 using EZSmartCardClient.Models;
+using Microsoft.Graph;
+using Microsoft.Graph.Models;
 
 namespace SampleSharedServices.Services;
 
@@ -16,6 +16,7 @@ public interface IGraphService
     Task<List<HRUser>> GetGroupMembersAsync(string groupID);
     Task<List<HRUser>> AllAADUsersAsync();
 }
+
 public class GraphService : IGraphService
 {
     private readonly GraphServiceClient _graphService;
@@ -31,32 +32,50 @@ public class GraphService : IGraphService
         {
             throw new ArgumentNullException(nameof(groupID));
         }
-        DirectoryObjectCollectionResponse? groupMembers = await 
-           _graphService.Groups[groupID].TransitiveMembers.GetAsync();
-       if (groupMembers == null)
-       {
-           throw new ApplicationException(
-               "The group was not found, please verify the group ID and ensure this account has directory read access");
-       }
+        DirectoryObjectCollectionResponse? groupMembers = await _graphService
+            .Groups[groupID]
+            .TransitiveMembers.GetAsync();
+        if (groupMembers == null)
+        {
+            throw new ApplicationException(
+                "The group was not found, please verify the group ID and ensure this account has directory read access"
+            );
+        }
         List<DirectoryObject> members = groupMembers.Value ?? new();
-        var pageIterator = PageIterator<DirectoryObject,
-           DirectoryObjectCollectionResponse>.CreatePageIterator(_graphService,
-           groupMembers, (user) => { members.Add(user); return true; });
+        var pageIterator = PageIterator<
+            DirectoryObject,
+            DirectoryObjectCollectionResponse
+        >.CreatePageIterator(
+            _graphService,
+            groupMembers,
+            (user) =>
+            {
+                members.Add(user);
+                return true;
+            }
+        );
         await pageIterator.IterateAsync();
         List<HRUser> users = new();
-        foreach (var user in members.Where(m =>
-                     m.OdataType == "#microsoft.graph.user").Cast<User>())
+        foreach (
+            var user in members.Where(m => m.OdataType == "#microsoft.graph.user").Cast<User>()
+        )
         {
-            if (!string.IsNullOrWhiteSpace(user.GivenName) && !string.IsNullOrWhiteSpace(user.Surname)
-                                                           && !string.IsNullOrWhiteSpace(user.UserPrincipalName))
+            if (
+                !string.IsNullOrWhiteSpace(user.GivenName)
+                && !string.IsNullOrWhiteSpace(user.Surname)
+                && !string.IsNullOrWhiteSpace(user.UserPrincipalName)
+            )
             {
                 string manager = await GetManagersEmailAsync(user);
-                users.Add(new HRUser(user.GivenName, user.Surname,
-                    user.UserPrincipalName, manager));
+                users.Add(
+                    new HRUser(user.GivenName, user.Surname, user.UserPrincipalName, manager)
+                );
             }
             else
             {
-                Console.WriteLine($"Skipping user {user.UserPrincipalName} {user.GivenName} {user.Surname} due to incomplete information");
+                Console.WriteLine(
+                    $"Skipping user {user.UserPrincipalName} {user.GivenName} {user.Surname} due to incomplete information"
+                );
             }
         }
         return users;
@@ -64,38 +83,52 @@ public class GraphService : IGraphService
 
     public async Task<List<HRUser>> AllAADUsersAsync()
     {
-        UserCollectionResponse? userCollection = await
-            _graphService.Users.GetAsync(requestConfiguration =>
+        UserCollectionResponse? userCollection = await _graphService.Users.GetAsync(
+            requestConfiguration =>
             {
                 //requestConfiguration.QueryParameters.Top = 1;
-            });
+            }
+        );
         if (userCollection == null)
         {
             throw new ApplicationException(
-                "No users found in Azure, please ensure this account has directory read access");
+                "No users found in Azure, please ensure this account has directory read access"
+            );
         }
         List<User> users = userCollection.Value ?? new();
-        var pageIterator = PageIterator<User, UserCollectionResponse>.CreatePageIterator(_graphService,
-            userCollection, (user) => { users.Add(user); return true; });
+        var pageIterator = PageIterator<User, UserCollectionResponse>.CreatePageIterator(
+            _graphService,
+            userCollection,
+            (user) =>
+            {
+                users.Add(user);
+                return true;
+            }
+        );
         await pageIterator.IterateAsync();
         List<HRUser> hrUsers = new();
         foreach (var user in users)
         {
-            if (!string.IsNullOrWhiteSpace(user.GivenName) && !string.IsNullOrWhiteSpace(user.Surname)
-                                                           && !string.IsNullOrWhiteSpace(user.UserPrincipalName))
+            if (
+                !string.IsNullOrWhiteSpace(user.GivenName)
+                && !string.IsNullOrWhiteSpace(user.Surname)
+                && !string.IsNullOrWhiteSpace(user.UserPrincipalName)
+            )
             {
                 string manager = await GetManagersEmailAsync(user);
-                hrUsers.Add(new HRUser(user.GivenName, user.Surname,
-                    user.UserPrincipalName, manager));
+                hrUsers.Add(
+                    new HRUser(user.GivenName, user.Surname, user.UserPrincipalName, manager)
+                );
             }
             else
             {
-                Console.WriteLine($"Skipping user {user.UserPrincipalName} {user.GivenName} {user.Surname} due to incomplete information");
+                Console.WriteLine(
+                    $"Skipping user {user.UserPrincipalName} {user.GivenName} {user.Surname} due to incomplete information"
+                );
             }
         }
         return hrUsers;
     }
-
 
     private async Task<string> GetManagersEmailAsync(User user)
     {
@@ -109,12 +142,14 @@ public class GraphService : IGraphService
         }
         catch (Exception ex)
         {
-            if (ex.Message != "Exception of type 'Microsoft.Graph.Models.ODataErrors.ODataError' was thrown.")
+            if (
+                ex.Message
+                != "Exception of type 'Microsoft.Graph.Models.ODataErrors.ODataError' was thrown."
+            )
             {
                 throw;
             }
         }
         return user.UserPrincipalName ?? "";
-
     }
 }

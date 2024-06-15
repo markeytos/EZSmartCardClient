@@ -1,0 +1,2 @@
+UserEmail,Address,City,State,Country,ZipCode,ReasonForRequest,SCType,SerialNumber,AttestationCertificate,TrackingNumber,FailedRequest,FailedAssignment
+me@codingflamingogmail.onmicrosoft.com,office,office,office,United States,office,Bulk Assignment Sample,YubiKey 5 USB A NFC,1234567890,,,True,True

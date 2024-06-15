@@ -5,33 +5,36 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using SampleSharedServices.Services;
 
-Console.WriteLine("Welcome to the EZSmartCard HR Sample");
-string groupObjectID = "";//enter a group ID if you want EZSmartCard to only add users from a specific group leave empty to add all the AAD Users
-string? instanceURL = "";//replace with your EZSmartCard instance URL
+Console.WriteLine("Welcome to the EZCMS HR Sample");
+string groupObjectID = ""; //enter a group ID if you want EZSmartCard to only add users from a specific group leave empty to add all the AAD Users
+string? instanceURL = ""; //replace with your EZSmartCard instance URL
 string appInsightsConnectionString = "";
 
 if (string.IsNullOrWhiteSpace(instanceURL))
 {
-    Console.WriteLine("Please enter the EZSmartCard Instance URL");
+    Console.WriteLine("Please enter the EZCMS Instance URL");
     instanceURL = Console.ReadLine();
 }
 
 if (string.IsNullOrWhiteSpace(instanceURL))
 {
-    Console.WriteLine("Invalid EZSmartCard Instance URL");
+    Console.WriteLine("Invalid EZCMS Instance URL");
     return;
 }
 ILogger logger = CreateLogger(appInsightsConnectionString);
-IEZSmartCardManager ezSmartCardManager = new EZSmartCardManager(new(),
-    instanceURL, logger, new AzureCliCredential());
+IEZSmartCardManager ezSmartCardManager = new EZSmartCardManager(
+    new(),
+    instanceURL,
+    logger,
+    new AzureCliCredential(),
+    "d3c9fa4a-db26-4197-b7d2-be2129ab70ba/.default"
+);
 IGraphService graphService = new GraphService(new DefaultAzureCredential());
-
 
 try
 {
-    Console.WriteLine("Getting EZSmartCard Active Users");
-    List<HRUser> users = 
-        await ezSmartCardManager.GetExistingUsersAsync(true);
+    Console.WriteLine("Getting EZCMS Active Users");
+    List<HRUser> users = await ezSmartCardManager.GetExistingUsersAsync(true);
     Console.WriteLine($"Found {users.Count} active users");
     List<HRUser> aadUsers = new();
     if (!string.IsNullOrWhiteSpace(groupObjectID))
@@ -48,10 +51,12 @@ try
     if (users.Count > 10 && aadUsers.Count < (users.Count * .95))
     {
         //A workforce reduction of 5% or more is a red flag that something is wrong stopping removal of users
-        throw new ("The number of users in EZSmartCard is " +
-                          "significantly higher than the number of users in Azure AD stopping update");
+        throw new(
+            "The number of users in EZSmartCard is "
+                + "significantly higher than the number of users in Azure AD stopping update"
+        );
     }
-    Console.WriteLine("Comparing EZSmartCard Users to Azure AD Users");
+    Console.WriteLine("Comparing EZCMS Users to Azure AD Users");
     await UpdateUserChangesAsync(aadUsers, users);
 }
 catch (Exception e)
@@ -86,7 +91,6 @@ async Task UpdateUserChangesAsync(List<HRUser> aadUsers, List<HRUser> users)
     }
     foreach (var userToDelete in userDict.Values)
     {
-
         APIResultModel result = await DeleteUserAsync(userToDelete.Email);
         if (result.Success)
         {
@@ -94,7 +98,9 @@ async Task UpdateUserChangesAsync(List<HRUser> aadUsers, List<HRUser> users)
         }
         else
         {
-            Console.WriteLine($"Error deleting {userToDelete.Email} from EZSmartCard " + result.Message);
+            Console.WriteLine(
+                $"Error deleting {userToDelete.Email} from EZSmartCard " + result.Message
+            );
         }
     }
     HRAddResponseModel UpdateResponse = await ezSmartCardManager.AddUsersAsync(toUpdate);
@@ -106,8 +112,8 @@ async Task<APIResultModel> DeleteUserAsync(string email)
     try
     {
         //Get Active SmartCards
-        List<SmartcardDetailsModel> userSmartCards = await 
-            ezSmartCardManager.AdminGetUserSmartCardsAsync(email);
+        List<SmartcardDetailsModel> userSmartCards =
+            await ezSmartCardManager.AdminGetUserSmartCardsAsync(email);
         foreach (var smartCard in userSmartCards)
         {
             //Delete SmartCard, Revoke Certificates and remove from inventory
@@ -117,11 +123,10 @@ async Task<APIResultModel> DeleteUserAsync(string email)
                 await ezSmartCardManager.AdminDeleteSmartCardAsync(smartCard.RequestID, true);
             }
         }
-        APIResultModel result = await ezSmartCardManager.DeleteUsersAsync(
-            new() { email });
+        APIResultModel result = await ezSmartCardManager.DeleteUsersAsync(new() { email });
         if (result.Success)
         {
-            Console.WriteLine($"Deleted {email} from EZSmartCard");
+            Console.WriteLine($"Deleted {email} from EZCMS");
         }
         else
         {
@@ -144,9 +149,10 @@ ILogger CreateLogger(string? appInsightsKey)
         if (!string.IsNullOrWhiteSpace(appInsightsKey))
         {
             builder.AddApplicationInsights(
-                configureTelemetryConfiguration: (config) => config.ConnectionString =
-                    appInsightsKey,
-                configureApplicationInsightsLoggerOptions: (options) => { });
+                configureTelemetryConfiguration: (config) =>
+                    config.ConnectionString = appInsightsKey,
+                configureApplicationInsightsLoggerOptions: (options) => { }
+            );
         }
 #pragma warning disable CA1416
         builder.AddEventLog();

@@ -11,8 +11,10 @@ namespace EZSmartCardClient.Models
     {
         [JsonPropertyName("DomainID")]
         public string DomainID { get; set; } = string.Empty;
+
         [JsonPropertyName("Alias")]
         public string Alias { get; set; } = string.Empty;
+
         [JsonPropertyName("NewAlias")]
         public string NewAlias { get; set; } = string.Empty;
     }

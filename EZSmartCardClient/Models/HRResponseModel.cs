@@ -9,10 +9,7 @@ namespace EZSmartCardClient.Models;
 
 public class HRResponseModel
 {
-    public HRResponseModel()
-    {
-
-    }
+    public HRResponseModel() { }
 
     public HRResponseModel(int currentPage)
     {
@@ -21,8 +18,10 @@ public class HRResponseModel
 
     [JsonPropertyName("HREntries")]
     public List<HRUser> HREntries { get; set; } = new();
+
     [JsonPropertyName("NextPage")]
     public int NextPage { get; set; } = -1;
+
     [JsonPropertyName("CurrentPage")]
     public int CurrentPage { get; set; } = -1;
 }

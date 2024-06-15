@@ -1,11 +1,9 @@
-﻿using Azure.Core;
+﻿using System.Text.Json;
+using Azure.Core;
+using Azure.Identity;
+using EZSmartCardClient.Models;
 using EZSmartCardClient.Services;
 using Microsoft.Extensions.Logging;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text.Json;
-using EZSmartCardClient.Models;
-using Azure.Identity;
 
 namespace EZSmartCardClient.Managers;
 
@@ -18,6 +16,7 @@ public interface IEZSmartCardManager
     /// <returns>List of <see cref="HRUser"/> </returns>
     /// <exception cref="HttpRequestException">Error contacting server</exception>
     Task<List<HRUser>> GetExistingUsersAsync(bool activeOnly);
+
     /// <summary>
     /// Add or update the users in the EZSmartCard HR Database
     /// </summary>
@@ -25,6 +24,7 @@ public interface IEZSmartCardManager
     /// <returns> <see cref="HRAddResponseModel"/> containing the lists of added, updated, and invalid users </returns>
     /// <exception cref="HttpRequestException">Error contacting server</exception>
     Task<HRAddResponseModel> AddUsersAsync(List<HRUser> users);
+
     /// <summary>
     /// Delete users in the EZSmartCard HR Database
     /// </summary>
@@ -41,7 +41,6 @@ public interface IEZSmartCardManager
     /// <returns> <see cref="Task"/> </returns>
     /// <exception cref="HttpRequestException">Error contacting server</exception>
     Task AdminDeleteSmartCardAsync(string requestID, bool delete);
-
 
     /// <summary>
     /// Get user's assigned smart cards. To use this function it has to be a smart card administrator account
@@ -66,18 +65,43 @@ public interface IEZSmartCardManager
     /// <returns> <see cref="UserMappingResponse"/> </returns>
     /// <exception cref="HttpRequestException">Error contacting server</exception>
     Task<UserMappingResponse> DeleteUserMappingsAsync(List<UserMappingModel> userMappings);
+
+    /// <summary>
+    /// Creates a User Smart Card Request
+    /// </summary>
+    /// <param name="newSC"> SmartCardRequest enter 'office' for all address fields if you want to avoid address verification </param>
+    /// <returns> <see cref="APIResultModel"/> </returns>
+    Task<APIResultModel> CreateUserSmartCardRequestAsync(SCRequestModel newSC);
+
+    /// <summary>
+    /// Get all pending smart card requests
+    /// </summary>
+    /// <returns> <see cref="DBSCRequestModel"/> List of pending requests </returns>
+    Task<List<DBSCRequestModel>> GetPendingSmartCardRequestsAsync();
+
+    /// <summary>
+    /// Assign a smart card to a user
+    /// </summary>
+    /// <param name="assignModel"> <see cref="SCAssignModel"/> </param>
+    /// <returns><see cref="APIResultModel"/></returns>
+    Task<APIResultModel> AssignUserSmartCardAsync(SCAssignModel assignModel);
 }
 
 public class EZSmartCardManager : IEZSmartCardManager
 {
     private readonly HttpClientService _httpClient;
     private readonly string _url;
+    private readonly string _scopes;
     private AccessToken _token;
     private readonly TokenCredential? _azureTokenCredential;
 
-    public EZSmartCardManager(HttpClient httpClient, string baseUrl,
+    public EZSmartCardManager(
+        HttpClient httpClient,
+        string baseUrl,
         ILogger? logger = null,
-        TokenCredential? azureTokenCredential = null)
+        TokenCredential? azureTokenCredential = null,
+        string scopes = "d3c9fa4a-db26-4197-b7d2-be2129ab70ba/.default"
+    )
     {
         if (string.IsNullOrWhiteSpace(baseUrl))
         {
@@ -89,6 +113,7 @@ public class EZSmartCardManager : IEZSmartCardManager
         }
         _azureTokenCredential = azureTokenCredential;
         _httpClient = new(httpClient, logger);
+        _scopes = scopes;
         _url = baseUrl.TrimEnd('/').Replace("http://", "https://");
     }
 
@@ -101,18 +126,26 @@ public class EZSmartCardManager : IEZSmartCardManager
         {
             APIResultModel response = await _httpClient.CallGenericAsync(
                 _url + "/api/HR/GetHRUsers?pageNumber=" + currentPage,
-                null, _token.Token, HttpMethod.Get);
+                null,
+                _token.Token,
+                HttpMethod.Get
+            );
             if (response.Success)
             {
-                HRResponseModel? hrResponse = JsonSerializer.Deserialize<HRResponseModel>(response.Message);
+                HRResponseModel? hrResponse = JsonSerializer.Deserialize<HRResponseModel>(
+                    response.Message
+                );
                 if (hrResponse == null)
                 {
                     currentPage = -1;
                 }
                 else
                 {
-                    users.AddRange(activeOnly ? hrResponse.HREntries :
-                        hrResponse.HREntries.Where(x => x.Active));
+                    users.AddRange(
+                        activeOnly
+                            ? hrResponse.HREntries
+                            : hrResponse.HREntries.Where(x => x.Active)
+                    );
                     currentPage = hrResponse.NextPage;
                 }
             }
@@ -131,20 +164,24 @@ public class EZSmartCardManager : IEZSmartCardManager
             throw new ArgumentNullException(nameof(users));
         }
         await GetTokenAsync();
-        APIResultModel result = await _httpClient.CallGenericAsync(_url + "/api/HR/AddHRUsers",
-                       JsonSerializer.Serialize(users), _token.Token, HttpMethod.Post);
+        APIResultModel result = await _httpClient.CallGenericAsync(
+            _url + "/api/HR/AddHRUsers",
+            JsonSerializer.Serialize(users),
+            _token.Token,
+            HttpMethod.Post
+        );
         HRAddResponseModel response = new();
         if (result.Success)
         {
-            result = JsonSerializer.Deserialize<APIResultModel>(result.Message) ??
-                     new(false, "Error contacting server, please try again");
+            result =
+                JsonSerializer.Deserialize<APIResultModel>(result.Message)
+                ?? new(false, "Error contacting server, please try again");
             if (result.Success)
             {
-                response = JsonSerializer.Deserialize<HRAddResponseModel>(result.Message) ??
-                                              new();
+                response = JsonSerializer.Deserialize<HRAddResponseModel>(result.Message) ?? new();
             }
         }
-        if(result.Success == false)
+        if (result.Success == false)
         {
             throw new HttpRequestException("Error getting users " + result.Message);
         }
@@ -158,12 +195,17 @@ public class EZSmartCardManager : IEZSmartCardManager
             throw new ArgumentNullException(nameof(emails));
         }
         await GetTokenAsync();
-        APIResultModel result = await _httpClient.CallGenericAsync(_url + "/api/HR/DeleteHRUsers",
-            JsonSerializer.Serialize(emails), _token.Token, HttpMethod.Post);
+        APIResultModel result = await _httpClient.CallGenericAsync(
+            _url + "/api/HR/DeleteHRUsers",
+            JsonSerializer.Serialize(emails),
+            _token.Token,
+            HttpMethod.Post
+        );
         if (result.Success)
         {
-            result = JsonSerializer.Deserialize<APIResultModel>(result.Message) ??
-                     new(false, "Error contacting server, please try again");
+            result =
+                JsonSerializer.Deserialize<APIResultModel>(result.Message)
+                ?? new(false, "Error contacting server, please try again");
         }
         return result;
     }
@@ -176,15 +218,19 @@ public class EZSmartCardManager : IEZSmartCardManager
         }
         await GetTokenAsync();
         APIResultModel request = new(delete, requestID);
-        APIResultModel result = await _httpClient.CallGenericAsync(_url + "/api/SmartCard/AdminRemoveSC",
-            JsonSerializer.Serialize(request), _token.Token, HttpMethod.Post);
+        APIResultModel result = await _httpClient.CallGenericAsync(
+            _url + "/api/SmartCard/AdminRemoveSC",
+            JsonSerializer.Serialize(request),
+            _token.Token,
+            HttpMethod.Post
+        );
         if (result.Success)
         {
-            result = JsonSerializer.Deserialize<APIResultModel>(result.Message) ??
-                     new(false, "Error contacting server, please try again");
-            
+            result =
+                JsonSerializer.Deserialize<APIResultModel>(result.Message)
+                ?? new(false, "Error contacting server, please try again");
         }
-        if(!result.Success)
+        if (!result.Success)
         {
             throw new HttpRequestException("Error deleting smart card " + result.Message);
         }
@@ -199,22 +245,26 @@ public class EZSmartCardManager : IEZSmartCardManager
         await GetTokenAsync();
         APIResultModel response = await _httpClient.CallGenericAsync(
             _url + "/api/SmartCard/AdminGetSmartCards?email=" + email,
-            null, _token.Token, HttpMethod.Get);
+            null,
+            _token.Token,
+            HttpMethod.Get
+        );
         if (response.Success)
         {
-            response = JsonSerializer.Deserialize<APIResultModel>(response.Message)
-                       ?? new(false,
-                "Server internal error");
+            response =
+                JsonSerializer.Deserialize<APIResultModel>(response.Message)
+                ?? new(false, "Server internal error");
         }
-        if(!response.Success) 
+        if (!response.Success)
         {
             throw new HttpRequestException("Error getting smart cards " + response.Message);
         }
-        return JsonSerializer.Deserialize<List<SmartcardDetailsModel>>(response.Message)
-               ?? new();
+        return JsonSerializer.Deserialize<List<SmartcardDetailsModel>>(response.Message) ?? new();
     }
 
-    public async Task<UserMappingResponse> CreateUserMappingsAsync(List<UserMappingModel> userMappings)
+    public async Task<UserMappingResponse> CreateUserMappingsAsync(
+        List<UserMappingModel> userMappings
+    )
     {
         if (userMappings == null || userMappings.Any() == false)
         {
@@ -223,7 +273,9 @@ public class EZSmartCardManager : IEZSmartCardManager
         return await CallUserMappingAPIs(userMappings, "/api/HR/AddUserMapping");
     }
 
-    public async Task<UserMappingResponse> DeleteUserMappingsAsync(List<UserMappingModel> userMappings)
+    public async Task<UserMappingResponse> DeleteUserMappingsAsync(
+        List<UserMappingModel> userMappings
+    )
     {
         if (userMappings == null || userMappings.Any() == false)
         {
@@ -232,31 +284,92 @@ public class EZSmartCardManager : IEZSmartCardManager
         return await CallUserMappingAPIs(userMappings, "/api/HR/DeleteUserMapping");
     }
 
-    private async Task<UserMappingResponse> CallUserMappingAPIs(List<UserMappingModel> userMappings,
-        string endpoint)
+    public async Task<APIResultModel> CreateUserSmartCardRequestAsync(SCRequestModel newSC)
+    {
+        await GetTokenAsync();
+        APIResultModel response = await _httpClient.CallGenericAsync(
+            _url + "/api/SmartCard/RequestSmartCard",
+            JsonSerializer.Serialize(newSC),
+            _token.Token,
+            HttpMethod.Post
+        );
+        if (response.Success)
+        {
+            response =
+                JsonSerializer.Deserialize<APIResultModel>(response.Message)
+                ?? new(false, "Server internal error");
+        }
+        return response;
+    }
+
+    public async Task<List<DBSCRequestModel>> GetPendingSmartCardRequestsAsync()
+    {
+        await GetTokenAsync();
+        APIResultModel result = await _httpClient.CallGenericAsync(
+            _url + "/api/SmartCard/GetPendingSCAssignments",
+            null,
+            _token.Token,
+            HttpMethod.Get
+        );
+        if (result.Success)
+        {
+            result =
+                JsonSerializer.Deserialize<APIResultModel>(result.Message)
+                ?? new(false, "Error contacting server, please try again");
+            if (result.Success)
+            {
+                return JsonSerializer.Deserialize<List<DBSCRequestModel>>(result.Message) ?? new();
+            }
+        }
+        throw new HttpRequestException("Error getting pending requests " + result.Message);
+    }
+
+    public async Task<APIResultModel> AssignUserSmartCardAsync(SCAssignModel assignModel)
+    {
+        await GetTokenAsync();
+        APIResultModel response = await _httpClient.CallGenericAsync(
+            _url + "/api/SmartCard/AssignSmartCard",
+            JsonSerializer.Serialize(assignModel),
+            _token.Token,
+            HttpMethod.Post
+        );
+        if (response.Success)
+        {
+            response =
+                JsonSerializer.Deserialize<APIResultModel>(response.Message)
+                ?? new(false, "Server internal error");
+        }
+        return response;
+    }
+
+    private async Task<UserMappingResponse> CallUserMappingAPIs(
+        List<UserMappingModel> userMappings,
+        string endpoint
+    )
     {
         await GetTokenAsync();
         APIResultModel response = await _httpClient.CallGenericAsync(
             _url + endpoint,
-            JsonSerializer.Serialize(userMappings), _token.Token, HttpMethod.Post);
+            JsonSerializer.Serialize(userMappings),
+            _token.Token,
+            HttpMethod.Post
+        );
         if (response.Success)
         {
-            response = JsonSerializer.Deserialize<APIResultModel>(response.Message)
-                       ?? new(false,
-                           "Server internal error");
+            response =
+                JsonSerializer.Deserialize<APIResultModel>(response.Message)
+                ?? new(false, "Server internal error");
         }
         if (!response.Success)
         {
             throw new HttpRequestException("Error managing user mappings" + response.Message);
         }
-        return JsonSerializer.Deserialize<UserMappingResponse>(response.Message)
-               ?? new();
+        return JsonSerializer.Deserialize<UserMappingResponse>(response.Message) ?? new();
     }
 
     private async Task GetTokenAsync()
     {
-        TokenRequestContext authContext = new(
-            new[] { "d3c9fa4a-db26-4197-b7d2-be2129ab70ba/.default" });
+        TokenRequestContext authContext = new(new[] { _scopes });
         if (_azureTokenCredential == null)
         {
             throw new ArgumentNullException(nameof(_azureTokenCredential));

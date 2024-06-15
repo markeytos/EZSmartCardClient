@@ -11,8 +11,10 @@ public class HRAddResponseModel
 {
     [JsonPropertyName("Added")]
     public List<HRUser> Added { get; set; } = new();
+
     [JsonPropertyName("Updated")]
     public List<HRUser> Updated { get; set; } = new();
+
     [JsonPropertyName("Invalid")]
     public List<HRUser> Invalid { get; set; } = new();
 }

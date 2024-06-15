@@ -11,18 +11,17 @@ namespace EZSmartCardClient.Models
     {
         [JsonPropertyName("SuccessfulEntries")]
         public List<UserMappingModel> SuccessfulEntries { get; set; } = new();
+
         [JsonPropertyName("FailedMapping")]
         public List<FailedUserMappingModel> FailedMapping { get; set; } = new();
+
         [JsonPropertyName("UpdatedEntries")]
         public List<UserMappingModel> UpdatedEntries { get; set; } = new();
     }
 
     public class FailedUserMappingModel
     {
-        public FailedUserMappingModel()
-        {
-
-        }
+        public FailedUserMappingModel() { }
 
         public FailedUserMappingModel(UserMappingModel dBUser, string reason)
         {
@@ -32,6 +31,7 @@ namespace EZSmartCardClient.Models
 
         [JsonPropertyName("UserMappingObj")]
         UserMappingModel UserMappingObj { get; set; } = new();
+
         [JsonPropertyName("Reason")]
         string Reason { get; set; } = string.Empty;
     }

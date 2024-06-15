@@ -13,40 +13,47 @@ namespace EZSmartCardClient.Services;
 
 public interface IHttpClientService
 {
-    Task<APIResultModel> CallGenericAsync(string url, string? jsonPayload,
-        string? token, HttpMethod httpMethod);
+    Task<APIResultModel> CallGenericAsync(
+        string url,
+        string? jsonPayload,
+        string? token,
+        HttpMethod httpMethod
+    );
 }
-
 
 public class HttpClientService : IHttpClientService
 {
     private readonly HttpClient _httpClient;
     private readonly AsyncRetryPolicy<HttpResponseMessage> _retryPolicy;
     private readonly ILogger? _logger;
+
     public HttpClientService(HttpClient httpClient, ILogger? logger)
     {
         _logger = logger;
         _httpClient = httpClient;
-        HttpStatusCode[] httpStatusCodesWorthRetrying = {
-               HttpStatusCode.RequestTimeout, // 408
-               HttpStatusCode.InternalServerError, // 500
-               HttpStatusCode.BadGateway, // 502
-               HttpStatusCode.ServiceUnavailable, // 503
-               HttpStatusCode.GatewayTimeout // 504
-            };
+        HttpStatusCode[] httpStatusCodesWorthRetrying =
+        {
+            HttpStatusCode.RequestTimeout, // 408
+            HttpStatusCode.InternalServerError, // 500
+            HttpStatusCode.BadGateway, // 502
+            HttpStatusCode.ServiceUnavailable, // 503
+            HttpStatusCode.GatewayTimeout // 504
+        };
         _retryPolicy = Policy
             .Handle<HttpRequestException>()
             .OrInner<TaskCanceledException>()
             .OrResult<HttpResponseMessage>(r => httpStatusCodesWorthRetrying.Contains(r.StatusCode))
-              .WaitAndRetryAsync(new[]
-              {
-                    TimeSpan.FromSeconds(2),
-                    TimeSpan.FromSeconds(4),
-                    TimeSpan.FromSeconds(8)
-              });
+            .WaitAndRetryAsync(
+                new[] { TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(4), TimeSpan.FromSeconds(8) }
+            );
     }
-    public async Task<APIResultModel> CallGenericAsync(string url, string? jsonPayload,
-        string? token, HttpMethod httpMethod)
+
+    public async Task<APIResultModel> CallGenericAsync(
+        string url,
+        string? jsonPayload,
+        string? token,
+        HttpMethod httpMethod
+    )
     {
         if (string.IsNullOrWhiteSpace(url))
         {
@@ -60,8 +67,9 @@ public class HttpClientService : IHttpClientService
         HttpResponseMessage responseMessage;
         try
         {
-            responseMessage = await _retryPolicy.ExecuteAsync(async () =>
-                      await CreateAndSendAsync(url, jsonPayload, token, httpMethod));
+            responseMessage = await _retryPolicy.ExecuteAsync(
+                async () => await CreateAndSendAsync(url, jsonPayload, token, httpMethod)
+            );
             apiResult.Message = await responseMessage.Content.ReadAsStringAsync();
             apiResult.Success = responseMessage.IsSuccessStatusCode;
         }
@@ -72,8 +80,7 @@ public class HttpClientService : IHttpClientService
                 _logger.LogError(ex, "Error contacting EZCA");
             }
             apiResult.Success = false;
-            if (ex.Message.Contains("One or more errors")
-                && ex.InnerException != null)
+            if (ex.Message.Contains("One or more errors") && ex.InnerException != null)
             {
                 apiResult.Message = ex.InnerException.Message;
             }
@@ -85,21 +92,26 @@ public class HttpClientService : IHttpClientService
         return apiResult;
     }
 
-    private async Task<HttpResponseMessage> CreateAndSendAsync(string url,
-            string? jsonPayload, string? token, HttpMethod method)
+    private async Task<HttpResponseMessage> CreateAndSendAsync(
+        string url,
+        string? jsonPayload,
+        string? token,
+        HttpMethod method
+    )
     {
         HttpRequestMessage requestMessage = new(method, url);
         if (!string.IsNullOrWhiteSpace(jsonPayload))
         {
-            requestMessage.Content = new StringContent(jsonPayload,
-                Encoding.UTF8, "application/json");
+            requestMessage.Content = new StringContent(
+                jsonPayload,
+                Encoding.UTF8,
+                "application/json"
+            );
         }
         if (!string.IsNullOrWhiteSpace(token))
         {
-            requestMessage.Headers.Add("Authorization",
-                "Bearer " + token);
+            requestMessage.Headers.Add("Authorization", "Bearer " + token);
         }
         return await _httpClient.SendAsync(requestMessage);
     }
-
 }
