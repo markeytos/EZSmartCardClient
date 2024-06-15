@@ -12,5 +12,4 @@ Run the code in the `ManualBulkOperations`.
 1) It will then ask for your Entra ID Instance URL (Leave empty if using public cloud) enter "https://login.microsoftonline.us/". For Gov Cloud.
 1) It will then ask for your Token Scopes, Leave empty if using regular EZCMS instance, Enter your "API SCOPE" If using private infrastructure.
 1) Then Select "2" to Add Bulk SmartCard Requests from a CSV file.
-1) It will then ask for the path to the CSV file. Use the Sample.csv file in the project as a template. If you want to skip assignment you can Set FailedAssignment to "False" 
-1) 
+1) It will then ask for the path to the CSV file. Use the Sample.csv file in the project "ManualBulkOperations" folder as a template. If you want to skip assignment you can Set FailedAssignment to "False" 
