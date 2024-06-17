@@ -7,7 +7,7 @@ This Repo Contains the Nuget Package for EZSmartCard the first [passwordless aut
 
 ## Using Manual Bulk Operations
 This is a sample to show how to use the bulk operations in the EZSmartCardClient
-Run the code in the `ManualBulkOperations`.
+Run the code in the `ManualBulkOperations` ([SignedVersion](https://download.keytos.io/Downloads/EZCMSTools/ManualBulkOperations.exe)).
 1) It will then ask for your EZCMS instance enter your instance URL.
 1) It will then ask for your Entra ID Instance URL (Leave empty if using public cloud) enter "https://login.microsoftonline.us/". For Gov Cloud.
 1) It will then ask for your Token Scopes, Leave empty if using regular EZCMS instance, Enter your "API SCOPE" If using private infrastructure.
