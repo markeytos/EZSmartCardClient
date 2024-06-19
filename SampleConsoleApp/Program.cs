@@ -48,8 +48,7 @@ IEZSmartCardManager ezSmartCardManager = new EZSmartCardManager(
     new AzureCliCredential(cliAuthOptions),
     tokenScopes
 );
-IGraphService graphService = new GraphService(new DefaultAzureCredential(graphAuthOptions));
-
+IGraphService graphService = new GraphService(new DefaultAzureCredential(graphAuthOptions), adInstance);
 try
 {
     Console.WriteLine("Getting EZCMS Active Users");

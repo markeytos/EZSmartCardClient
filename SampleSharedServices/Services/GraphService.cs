@@ -21,9 +21,18 @@ public class GraphService : IGraphService
 {
     private readonly GraphServiceClient _graphService;
 
-    public GraphService(TokenCredential tokenCredential)
+    public GraphService(TokenCredential tokenCredential, string authorityURL)
     {
-        _graphService = new(tokenCredential);
+        string graphEndpoint = "https://graph.microsoft.com/";
+        if(authorityURL.Contains("microsoftonline.us"))
+        {
+            graphEndpoint = "https://graph.microsoft.us/";
+        }
+        _graphService = new GraphServiceClient(
+            tokenCredential,
+            new string[] { $"{graphEndpoint}.default"},
+            graphEndpoint + "v1.0"
+        );
     }
 
     public async Task<List<HRUser>> GetGroupMembersAsync(string groupID)
@@ -140,11 +149,16 @@ public class GraphService : IGraphService
                 return manager.UserPrincipalName;
             }
         }
+        catch (Microsoft.Graph.Models.ODataErrors.ODataError)
+        {
+            Console.WriteLine("No manager found for user " + user.UserPrincipalName);
+        }
         catch (Exception ex)
         {
             if (
                 ex.Message
                 != "Exception of type 'Microsoft.Graph.Models.ODataErrors.ODataError' was thrown."
+                || ex.Message != "Resource 'manager' does not exist or one of its queried reference-property objects are not present."
             )
             {
                 throw;
