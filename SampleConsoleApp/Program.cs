@@ -6,7 +6,7 @@ using Microsoft.Extensions.Logging;
 using SampleSharedServices.Services;
 
 Console.WriteLine("Welcome to the EZCMS HR Sample");
-string groupObjectID = ""; //enter a group ID if you want EZSmartCard to only add users from a specific group leave empty to add all the AAD Users
+string? groupObjectID = ""; //enter a group ID if you want EZSmartCard to only add users from a specific group leave empty to add all the AAD Users
 string? instanceURL = ""; //replace with your EZSmartCard instance URL
 string appInsightsConnectionString = "";
 
@@ -21,22 +21,41 @@ if (string.IsNullOrWhiteSpace(instanceURL))
     Console.WriteLine("Invalid EZCMS Instance URL");
     return;
 }
+Console.WriteLine("Please Enter your AD Instance URL (leave blank for default)");
+string? adInstance = Console.ReadLine();
+if (string.IsNullOrWhiteSpace(adInstance))
+{
+    adInstance = "https://login.microsoftonline.com/";
+}
+Console.WriteLine("Please Enter your Token Scopes (leave blank for default)");
+string? tokenScopes = Console.ReadLine();
+if (string.IsNullOrWhiteSpace(tokenScopes))
+{
+    tokenScopes = "d3c9fa4a-db26-4197-b7d2-be2129ab70ba/.default";
+}
+if(string.IsNullOrWhiteSpace(groupObjectID))
+{
+    Console.WriteLine("Please Enter the Group Object ID (leave blank for all users)");
+    groupObjectID = Console.ReadLine();
+}
 ILogger logger = CreateLogger(appInsightsConnectionString);
+var cliAuthOptions = new AzureCliCredentialOptions { AuthorityHost = new Uri(adInstance) };
+var graphAuthOptions = new DefaultAzureCredentialOptions  { AuthorityHost = new Uri(adInstance) };
 IEZSmartCardManager ezSmartCardManager = new EZSmartCardManager(
     new(),
     instanceURL,
     logger,
-    new AzureCliCredential(),
-    "d3c9fa4a-db26-4197-b7d2-be2129ab70ba/.default"
+    new AzureCliCredential(cliAuthOptions),
+    tokenScopes
 );
-IGraphService graphService = new GraphService(new DefaultAzureCredential());
+IGraphService graphService = new GraphService(new DefaultAzureCredential(graphAuthOptions));
 
 try
 {
     Console.WriteLine("Getting EZCMS Active Users");
     List<HRUser> users = await ezSmartCardManager.GetExistingUsersAsync(true);
     Console.WriteLine($"Found {users.Count} active users");
-    List<HRUser> aadUsers = new();
+    List<HRUser> aadUsers;
     if (!string.IsNullOrWhiteSpace(groupObjectID))
     {
         Console.WriteLine("Getting Users from Azure AD Group");
@@ -47,17 +66,26 @@ try
         Console.WriteLine("Getting All Users from Azure AD");
         aadUsers = await graphService.AllAADUsersAsync();
     }
+    aadUsers = aadUsers.DistinctBy(i => i.Email).ToList();
     Console.WriteLine($"Found {aadUsers.Count} users in Azure AD");
     if (users.Count > 10 && aadUsers.Count < (users.Count * .95))
     {
         //A workforce reduction of 5% or more is a red flag that something is wrong stopping removal of users
-        throw new(
-            "The number of users in EZSmartCard is "
-                + "significantly higher than the number of users in Azure AD stopping update"
+        Console.WriteLine(
+            $"The number of users in EZCMS {users.Count} is significantly higher than the number of users in Entra ID {aadUsers.Count} Do you want to continue? (Y/N)"
         );
+        string? decision = Console.ReadLine();
+        if (decision?.ToLower().Contains("y") != true)
+        {
+            throw new(
+                "The number of users in EZCMS is "
+                + "significantly higher than the number of users in Azure AD stopping update"
+            );
+        }
     }
     Console.WriteLine("Comparing EZCMS Users to Azure AD Users");
     await UpdateUserChangesAsync(aadUsers, users);
+    Console.WriteLine("User Update Complete");
 }
 catch (Exception e)
 {
@@ -103,8 +131,24 @@ async Task UpdateUserChangesAsync(List<HRUser> aadUsers, List<HRUser> users)
             );
         }
     }
-    HRAddResponseModel UpdateResponse = await ezSmartCardManager.AddUsersAsync(toUpdate);
-    HRAddResponseModel addResponse = await ezSmartCardManager.AddUsersAsync(toAdd);
+
+    if (toUpdate.Count > 0)
+    {
+        HRAddResponseModel UpdateResponse = await ezSmartCardManager.AddUsersAsync(toUpdate);
+        
+        foreach (var user in UpdateResponse.Updated)
+        {
+            Console.WriteLine($"Updated {user.Email} ");
+        }
+    }    
+    if(toAdd.Count > 0)
+    {
+        HRAddResponseModel addResponse = await ezSmartCardManager.AddUsersAsync(toAdd);
+        foreach (var user in addResponse.Updated)
+        {
+            Console.WriteLine($"Added {user.Email} ");
+        }
+    }
 }
 
 async Task<APIResultModel> DeleteUserAsync(string email)
@@ -123,7 +167,7 @@ async Task<APIResultModel> DeleteUserAsync(string email)
                 await ezSmartCardManager.AdminDeleteSmartCardAsync(smartCard.RequestID, true);
             }
         }
-        APIResultModel result = await ezSmartCardManager.DeleteUsersAsync(new() { email });
+        APIResultModel result = await ezSmartCardManager.DeleteUsersAsync([email]);
         if (result.Success)
         {
             Console.WriteLine($"Deleted {email} from EZCMS");
@@ -151,12 +195,12 @@ ILogger CreateLogger(string? appInsightsKey)
             builder.AddApplicationInsights(
                 configureTelemetryConfiguration: (config) =>
                     config.ConnectionString = appInsightsKey,
-                configureApplicationInsightsLoggerOptions: (options) => { }
+                configureApplicationInsightsLoggerOptions: (_) => { }
             );
         }
-#pragma warning disable CA1416
+#if WINDOWS
         builder.AddEventLog();
-#pragma warning restore CA1416
+#endif
     });
     IServiceProvider serviceProvider = services.BuildServiceProvider();
     return serviceProvider.GetRequiredService<ILogger<Program>>();
