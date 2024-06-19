@@ -143,8 +143,8 @@ public class EZSmartCardManager : IEZSmartCardManager
                 {
                     users.AddRange(
                         activeOnly
-                            ? hrResponse.HREntries
-                            : hrResponse.HREntries.Where(x => x.Active)
+                            ? hrResponse.HREntries.Where(x => x.Active && x.Deleted == false)
+                            : hrResponse.HREntries
                     );
                     currentPage = hrResponse.NextPage;
                 }
@@ -369,7 +369,7 @@ public class EZSmartCardManager : IEZSmartCardManager
 
     private async Task GetTokenAsync()
     {
-        TokenRequestContext authContext = new(new[] { _scopes });
+        TokenRequestContext authContext = new([_scopes]);
         if (_azureTokenCredential == null)
         {
             throw new ArgumentNullException(nameof(_azureTokenCredential));
