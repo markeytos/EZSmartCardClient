@@ -36,7 +36,8 @@ public class HRUser
                 && Active == user.Active
                 && DocumentNumber == user.DocumentNumber
                 && DOB == user.DOB
-                && Country == user.Country;
+                && Country == user.Country
+                && UserGuid == user.UserGuid;
         }
         return false;
     }
@@ -61,6 +62,13 @@ public class HRUser
 
     [JsonPropertyName("Alias")]
     public string Alias { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Entra ID (Azure AD) object ID of the user. Populated when the user is sourced from
+    /// Entra so lifecycle reconciliation can match on this immutable ID instead of email.
+    /// </summary>
+    [JsonPropertyName("UserGuid")]
+    public string UserGuid { get; set; } = string.Empty;
 
     [JsonPropertyName("ManagerEmail")]
     public string ManagerEmail { get; set; } = string.Empty;
